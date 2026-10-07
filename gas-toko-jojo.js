@@ -154,8 +154,12 @@ function handleBuy(chatId, voucherSheet, txSheet) {
       return;
     }
 
+    // Generate kode unik acak antara 1 s/d 299 agar transaksi tidak bertabrakan
+    const uniqueCode = getAvailableUniqueCode(txSheet, voucher.price, 1, 299);
+    const totalPayment = voucher.price + uniqueCode;
+
     orderId = "TX-" + Date.now();
-    txSheet.appendRow([new Date(), orderId, chatId, voucher.code, voucher.price, "PENDING"]);
+    txSheet.appendRow([new Date(), orderId, chatId, voucher.code, totalPayment, "PENDING"]);
     SpreadsheetApp.flush();
   } finally {
     lock.releaseLock();
@@ -172,7 +176,7 @@ function handleBuy(chatId, voucherSheet, txSheet) {
         contentType: "application/json",
         headers: { "x-api-key": GOPAY_API_KEY },
         payload: JSON.stringify({
-          amount: voucher.price,
+          amount: totalPayment,
           order_id: orderId,
           expire_minutes: ORDER_EXPIRE_MINUTES
         }),
@@ -193,7 +197,7 @@ function handleBuy(chatId, voucherSheet, txSheet) {
 
   // Fallback jika gateway sedang tidak terjangkau
   if (!dynamicQris) {
-    dynamicQris = convertToDynamicQRIS(STATIC_QRIS, voucher.price);
+    dynamicQris = convertToDynamicQRIS(STATIC_QRIS, totalPayment);
   }
 
   const qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=10&data=" + encodeURIComponent(dynamicQris);
@@ -201,10 +205,13 @@ function handleBuy(chatId, voucherSheet, txSheet) {
   let caption = 
     `📲 *ORDER KODE PROMO*\n\n` +
     `🆔 Order ID: \`${orderId}\`\n` +
-    `💰 Total: *${formatRp(voucher.price)}*\n` +
+    `💰 Harga Produk: ${formatRp(voucher.price)}\n` +
+    `🔢 Kode Unik: ${formatRp(uniqueCode)}\n` +
+    `💳 *TOTAL BAYAR: ${formatRp(totalPayment)}*\n` +
     `📌 Merchant: *Mas Mas IT, SIDOREJO*\n` +
     `⏳ Batas bayar: *${ORDER_EXPIRE_MINUTES} menit*\n\n` +
-    `Scan QR di atas dengan GoPay, OVO, DANA, ShopeePay, atau m-Banking.\n`;
+    `Scan QR di atas dengan GoPay, OVO, DANA, ShopeePay, atau m-Banking.\n` +
+    `_(Nominal ${formatRp(totalPayment)} sudah terisi otomatis saat scan QR)_\n\n`;
 
   if (paymentUrl) {
     caption += `🌐 Cek Status / Bayar via Web:\n${paymentUrl}\n\n`;
@@ -215,14 +222,33 @@ function handleBuy(chatId, voucherSheet, txSheet) {
 
   if (ADMIN_CHAT_ID) {
     sendMessage(ADMIN_CHAT_ID,
-      `🛎 *Order Baru Masuk*\n🆔 \`${orderId}\`\n💰 ${formatRp(voucher.price)}\n👤 \`${chatId}\`\n\n` +
+      `🛎 *Order Baru Masuk*\n🆔 \`${orderId}\`\n💰 Total: ${formatRp(totalPayment)} (Termasuk Kode Unik ${uniqueCode})\n👤 \`${chatId}\`\n\n` +
       `⚡ *Auto-Watcher Aktif:* Gateway akan konfirmasi otomatis jika pembayaran masuk.\n` +
       `Manual fallback: \`/konfirmasi ${orderId}\``);
   }
 
   if (CHANNEL_ID) {
-    postNewOrderToChannel(orderId, voucher.price, chatId);
+    postNewOrderToChannel(orderId, totalPayment, chatId);
   }
+}
+
+// Helper: Cari kode unik acak yang belum dipakai oleh order pending lain
+function getAvailableUniqueCode(sheet, basePrice, minCode, maxCode) {
+  const rows = sheet.getDataRange().getValues();
+  const activeAmounts = new Set();
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][T.STATUS]).trim().toUpperCase() === "PENDING") {
+      activeAmounts.add(parseInt(rows[i][T.AMOUNT]));
+    }
+  }
+
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const code = Math.floor(Math.random() * (maxCode - minCode + 1)) + minCode;
+    if (!activeAmounts.has(basePrice + code)) {
+      return code;
+    }
+  }
+  return Math.floor(Math.random() * (maxCode - minCode + 1)) + minCode;
 }
 
 function postNewOrderToChannel(orderId, amount, chatId) {
