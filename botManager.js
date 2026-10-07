@@ -502,6 +502,13 @@ async function handleTelegramUpdate(update) {
                 await cancelOrder(chatId);
                 break;
 
+            case '/reset': {
+                storeManager.cancelOrder(chatId);
+                await sendMessage(chatId, `🔄 <b>Percakapan &amp; Pesanan Berhasil Direset!</b>\n\nStatus pesanan Anda telah dibersihkan.`);
+                await sendMainMenu(chatId);
+                break;
+            }
+
             case '/status':
             case '/pesanan': {
                 const pending = storeManager.findPendingOrderByChat(chatId);
