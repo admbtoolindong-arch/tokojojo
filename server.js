@@ -68,6 +68,146 @@ async function autoRefreshSessionPeriodically() {
 }
 setInterval(autoRefreshSessionPeriodically, 6 * 60 * 60 * 1000);
 
+// Kirim Pesan Telegram via Bot Token
+async function sendTelegramMessage(chatId, text) {
+    const botToken = process.env.BOT_TOKEN;
+    if (!botToken || !chatId) return false;
+    try {
+        await axios.post(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            chat_id: chatId,
+            text: text,
+            parse_mode: 'Markdown'
+        }, { timeout: 8000 });
+        return true;
+    } catch (err) {
+        logActivity('ERROR', `Gagal kirim notifikasi Telegram ke ${chatId}: ${err.message}`);
+        return false;
+    }
+}
+
+// Memicu Webhook Callback ke Google Apps Script (Toko Jojo)
+async function triggerWebhookNotification(qris, transaction) {
+    if (!qris) return;
+    if (qris.webhookNotified) return;
+    qris.webhookNotified = true;
+
+    const targetUrl = qris.webhookUrl || process.env.GAS_WEBHOOK_URL;
+    const orderId = qris.orderId || qris.trxId;
+    const secret = process.env.WEBHOOK_SECRET || 'jojo-rahasia-8f3k2m9x';
+    const amountRp = Number(qris.amount).toLocaleString('id-ID');
+
+    logActivity('INFO', `Memicu Webhook Pembayaran untuk Order: ${orderId} (Rp ${amountRp})`);
+
+    // 1. Kirim notifikasi Telegram ke Admin jika BOT_TOKEN & ADMIN_CHAT_ID tersedia
+    if (process.env.ADMIN_CHAT_ID) {
+        sendTelegramMessage(
+            process.env.ADMIN_CHAT_ID,
+            `🎉 *GOPAY GATEWAY: PEMBAYARAN MASUK*\n\n` +
+            `🆔 Order ID: \`${orderId}\`\n` +
+            `💰 Nominal: *Rp ${amountRp}*\n` +
+            `💳 Metode: ${transaction?.payer_issuer || 'QRIS / GoPay'}\n` +
+            `🕒 Waktu: ${transaction?.transaction_time ? new Date(transaction.transaction_time).toLocaleString('id-ID') : new Date().toLocaleString('id-ID')}\n\n` +
+            `⚡ Mengirim sinyal webhook ke Toko Jojo...`
+        ).catch(() => {});
+    }
+
+    // Kirim notifikasi ke Channel Publik / Log Transaksi jika CHANNEL_ID tersedia
+    if (process.env.CHANNEL_ID) {
+        sendTelegramMessage(
+            process.env.CHANNEL_ID,
+            `🎉 *TRANSAKSI BERHASIL / LUNAS*\n\n` +
+            `🆔 Order ID: \`${orderId}\`\n` +
+            `💰 Nominal: *Rp ${amountRp}*\n` +
+            `💳 Pembayaran: *QRIS / GoPay*\n` +
+            `🕒 Waktu: ${transaction?.transaction_time ? new Date(transaction.transaction_time).toLocaleString('id-ID') : new Date().toLocaleString('id-ID')}`
+        ).catch(() => {});
+    }
+
+    // 2. Kirim Webhook ke GAS Web App
+    if (!targetUrl) {
+        logActivity('WARNING', `GAS_WEBHOOK_URL belum diset di .env, webhook untuk order ${orderId} dilewati.`);
+        return;
+    }
+
+    try {
+        const payload = {
+            order_id: orderId,
+            status: 'PAID',
+            amount: qris.amount,
+            secret: secret,
+            transaction: transaction
+        };
+
+        const res = await axios.post(targetUrl, payload, {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 15000,
+            maxRedirects: 5
+        });
+
+        logActivity('SUCCESS', `Webhook Toko Jojo berhasil terkirim untuk order ${orderId} (HTTP ${res.status})`);
+    } catch (err) {
+        logActivity('ERROR', `Gagal mengirim webhook ke GAS untuk order ${orderId}: ${err.message}`);
+    }
+}
+
+// Background Auto-Watcher: Memeriksa otomatis transaksi GoPay untuk setiap QRIS yang PENDING
+let isPollingActive = false;
+async function pollPendingTransactions() {
+    if (isPollingActive) return;
+    if (qrisStore.size === 0) return;
+    if (!sessionManager.loadSession()) return;
+
+    const pendingList = [];
+    const now = Date.now();
+
+    for (const [qrisId, qris] of qrisStore.entries()) {
+        if (qris.status === 'PENDING') {
+            if (now > qris.expiresAt.getTime()) {
+                qris.status = 'EXPIRED';
+                logActivity('INFO', `QRIS ID ${qrisId} (Order ${qris.orderId || qris.trxId}) telah kedaluwarsa.`);
+            } else {
+                pendingList.push({ qrisId, qris });
+            }
+        }
+    }
+
+    if (pendingList.length === 0) return;
+
+    isPollingActive = true;
+    try {
+        for (const { qrisId, qris } of pendingList) {
+            try {
+                const matched = await verifyPayment(
+                    qris.amount,
+                    qris.createdAt,
+                    null,
+                    'GoPay-Gateway-AutoWatcher/1.0',
+                    qris.trxId || qrisId
+                );
+
+                if (matched) {
+                    qris.status = 'PAID';
+                    qris.transaction = matched;
+                    qrisStore.set(qrisId, qris);
+
+                    logActivity('SUCCESS', `Auto-Watcher: Pembayaran order ${qris.orderId || qris.trxId} terverifikasi lunas Rp ${qris.amount}!`);
+                    await triggerWebhookNotification(qris, matched);
+                }
+            } catch (checkErr) {
+                if (!checkErr.message?.includes('Sesi GoPay belum ada')) {
+                    logActivity('WARNING', `Auto-Watcher gagal cek QRIS ${qrisId}: ${checkErr.message}`);
+                }
+            }
+        }
+    } finally {
+        isPollingActive = false;
+    }
+}
+
+// Jalankan Auto-Watcher berkala (default setiap 15 detik)
+const AUTO_POLL_INTERVAL_SEC = parseInt(process.env.AUTO_POLL_INTERVAL_SEC, 10) || 15;
+setInterval(pollPendingTransactions, AUTO_POLL_INTERVAL_SEC * 1000);
+
 // Hitung Checksum CRC16 EMVCo untuk QRIS
 function calculateCRC16(payload) {
     let crc = 0xFFFF;
@@ -204,8 +344,13 @@ app.get('/token-status', apiKeyAuth, async (req, res) => {
 });
 
 // Buat QRIS Dinamis (Support GET query & POST body)
+// Menerima parameter opsional: order_id, webhook_url, expire_minutes (default 30 menit)
 app.all('/create-qris', apiKeyAuth, (req, res) => {
     const amount = req.body?.amount || req.query?.amount;
+    const customOrderId = req.body?.order_id || req.query?.order_id || req.body?.trx_id || req.query?.trx_id;
+    const webhookUrl = req.body?.webhook_url || req.query?.webhook_url || process.env.GAS_WEBHOOK_URL;
+    const expiryMinutes = parseInt(req.body?.expire_minutes || req.query?.expire_minutes, 10) || 30;
+
     if (!amount || isNaN(amount) || amount <= 0) {
         return res.status(400).json({ success: false, message: 'Nominal pembayaran tidak valid (gunakan ?amount=...)' });
     }
@@ -217,15 +362,18 @@ app.all('/create-qris', apiKeyAuth, (req, res) => {
 
     const dynamicCode = generateDynamicQRIS(staticTemplate, amount);
     const qrisId = Math.random().toString(36).substring(2, 10);
-    // TRX-ID unik per payment — dipakai sebagai scope klaim agar tidak tabrakan dengan payment lain
-    const trxId = 'TRX-' + Math.random().toString(36).substring(2, 10).toUpperCase();
-    const expiresAt = new Date(Date.now() + QRIS_EXPIRY_MS);
+    // Pakai customOrderId (misal format Toko Jojo TX-...) atau generate otomatis
+    const trxId = customOrderId || ('TX-' + Math.random().toString(36).substring(2, 10).toUpperCase());
+    const expiresAt = new Date(Date.now() + expiryMinutes * 60 * 1000);
     const createdAt = new Date();
 
     qrisStore.set(qrisId, {
         data: dynamicCode,
         amount: parseInt(amount, 10),
         trxId,
+        orderId: trxId,
+        webhookUrl,
+        webhookNotified: false,
         expiresAt,
         createdAt,
         status: 'PENDING'
@@ -235,20 +383,82 @@ app.all('/create-qris', apiKeyAuth, (req, res) => {
     const protocol = req.protocol;
     const publicUrl = `${protocol}://${host}/qr/${qrisId}`;
 
-    logActivity('INFO', `QRIS Dinamis dibuat | TRX-ID: ${trxId} | Nominal: Rp ${amount}`);
+    logActivity('INFO', `QRIS Dinamis dibuat | Order ID: ${trxId} | Nominal: Rp ${amount}`);
 
     res.json({
         success: true,
         data: {
             qris_id: qrisId,
+            order_id: trxId,
             trx_id: trxId,
             qris_url: publicUrl,
             qris_code: dynamicCode,
             amount: parseInt(amount, 10),
             expires_at: expiresAt.toISOString(),
-            expires_in: '5 menit'
+            expires_in: `${expiryMinutes} menit`
         }
     });
+});
+
+// Endpoint untuk mendaftarkan order pembayaran dari Toko Jojo / Bot luar agar langsung dipantau
+app.post('/api/register-order', apiKeyAuth, (req, res) => {
+    const { order_id, amount, webhook_url, expire_minutes } = req.body;
+    if (!order_id || !amount) {
+        return res.status(400).json({ success: false, message: 'order_id dan amount wajib diisi' });
+    }
+
+    const qrisId = Math.random().toString(36).substring(2, 10);
+    const expiryMinutes = parseInt(expire_minutes, 10) || 30;
+    const expiresAt = new Date(Date.now() + expiryMinutes * 60 * 1000);
+    const createdAt = new Date();
+
+    qrisStore.set(qrisId, {
+        data: null,
+        amount: parseInt(amount, 10),
+        trxId: order_id,
+        orderId: order_id,
+        webhookUrl: webhook_url || process.env.GAS_WEBHOOK_URL,
+        webhookNotified: false,
+        expiresAt,
+        createdAt,
+        status: 'PENDING'
+    });
+
+    logActivity('INFO', `Order Toko Jojo terdaftar | Order ID: ${order_id} | Rp ${amount}`);
+    res.json({
+        success: true,
+        message: 'Order berhasil didaftarkan ke auto-watcher GoPay',
+        data: { qris_id: qrisId, order_id, amount, expires_at: expiresAt.toISOString() }
+    });
+});
+
+// Endpoint Pengujian Webhook Toko Jojo
+app.post('/api/test-webhook', apiKeyAuth, async (req, res) => {
+    const testOrderId = req.body?.order_id || 'TX-TEST-' + Date.now();
+    const testAmount = req.body?.amount || 15000;
+    const mockTransaction = {
+        transaction_id: 'TEST-TX-' + Date.now(),
+        order_id: testOrderId,
+        amount: testAmount,
+        payer_issuer: 'GoPay Test Simulator',
+        payment_type: 'QRIS',
+        transaction_time: new Date().toISOString()
+    };
+
+    const mockQris = {
+        amount: testAmount,
+        orderId: testOrderId,
+        trxId: testOrderId,
+        webhookUrl: req.body?.webhook_url || process.env.GAS_WEBHOOK_URL,
+        webhookNotified: false
+    };
+
+    try {
+        await triggerWebhookNotification(mockQris, mockTransaction);
+        res.json({ success: true, message: 'Tes webhook berhasil dipicu', order_id: testOrderId });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
 });
 
 // Render Halaman HTML QRIS Interaktif (Tombol Cek Manual + Auto Polling Toggle)
@@ -613,11 +823,17 @@ async function verifyPayment(amount, startTime, merchantIdOverride = null, userA
     const filterStartTimeMs = startTime ? new Date(startTime).getTime() : 0;
 
     for (const tx of rawTransactions) {
-        const txAmount = parseInt(tx.gross_amount || tx.real_gross_amount || tx.amount?.value || tx.amount || 0, 10);
+        const rawTxAmount = parseInt(tx.gross_amount || tx.real_gross_amount || tx.amount?.value || tx.amount || 0, 10);
+        // GoPay API v2 mengembalikan gross_amount dalam format sen (dikalikan 100, misal Rp 15.000 menjadi 1500000)
+        const isAmountMatch = (rawTxAmount === targetAmount) || (rawTxAmount === targetAmount * 100) || (rawTxAmount / 100 === targetAmount);
+        const resolvedAmount = (rawTxAmount === targetAmount * 100) ? (rawTxAmount / 100) : rawTxAmount;
         const txTimestamp = new Date(tx.transaction_time || tx.created_at || tx.settlement_time || 0).getTime();
         const txId = tx.id || tx.order_id || tx.wallstreet_transaction_id;
 
-        if (txAmount === targetAmount && txTimestamp >= filterStartTimeMs) {
+        // Berikan toleransi waktu 60 detik jika ada sedikit perbedaan jam server vs GoPay
+        const adjustedStartTimeMs = filterStartTimeMs ? (filterStartTimeMs - 60000) : 0;
+
+        if (isAmountMatch && txTimestamp >= adjustedStartTimeMs) {
             const existingClaim = claimedTransactions.get(txId);
 
             if (!existingClaim) {
@@ -627,7 +843,7 @@ async function verifyPayment(amount, startTime, merchantIdOverride = null, userA
                 return {
                     transaction_id: txId,
                     order_id: tx.order_id,
-                    amount: txAmount,
+                    amount: resolvedAmount,
                     payer_issuer: tx.qris_provider_aspi_issuer || 'GoPay / Bank',
                     payment_type: tx.payment_type || tx.transaction_source || 'GOPAY_INSTORE',
                     transaction_time: tx.transaction_time || tx.settlement_time
@@ -637,7 +853,7 @@ async function verifyPayment(amount, startTime, merchantIdOverride = null, userA
                 return {
                     transaction_id: txId,
                     order_id: tx.order_id,
-                    amount: txAmount,
+                    amount: resolvedAmount,
                     payer_issuer: tx.qris_provider_aspi_issuer || 'GoPay / Bank',
                     payment_type: tx.payment_type || tx.transaction_source || 'GOPAY_INSTORE',
                     transaction_time: tx.transaction_time || tx.settlement_time
@@ -677,6 +893,7 @@ app.get('/api/qr-status/:id', async (req, res) => {
             qris.transaction = matched;
             qrisStore.set(qrisId, qris);
             logActivity('SUCCESS', `Pembayaran QRIS ID ${qrisId} terverifikasi lunas untuk nominal Rp ${qris.amount}`);
+            await triggerWebhookNotification(qris, matched);
             return res.json({ success: true, paid: true, status: 'PAID', transaction: matched });
         }
         return res.json({ success: true, paid: false, status: 'PENDING', message: 'Belum ada pembayaran masuk' });
@@ -703,6 +920,18 @@ app.all('/check-payment', apiKeyAuth, async (req, res) => {
 
         if (matchedTransaction) {
             logActivity('SUCCESS', `Pembayaran terverifikasi lunas untuk nominal Rp ${parseInt(amount, 10)}`, matchedTransaction);
+            // Trigger webhook jika ada order terdaftar yang cocok
+            if (scopeId) {
+                for (const [qid, q] of qrisStore.entries()) {
+                    if (q.trxId === scopeId || q.orderId === scopeId || qid === scopeId) {
+                        q.status = 'PAID';
+                        q.transaction = matchedTransaction;
+                        qrisStore.set(qid, q);
+                        await triggerWebhookNotification(q, matchedTransaction);
+                        break;
+                    }
+                }
+            }
             return res.json({
                 success: true,
                 paid: true,
