@@ -296,8 +296,8 @@ async function processOrder(chatId, qty) {
 
     await sendPhoto(chatId, qrUrl, caption, keyboard);
 
-    // Notifikasi Admin
-    if (ADMIN_CHAT_ID) {
+    // Notifikasi Admin (Hanya dikirim jika pembeli bukan admin itu sendiri, agar user tidak menerima pesan order masuk)
+    if (ADMIN_CHAT_ID && String(ADMIN_CHAT_ID) !== String(chatId)) {
         sendMessage(ADMIN_CHAT_ID,
             `🛎 <b>Order Baru Masuk</b>\n` +
             `🆔 <code>${orderId}</code>\n` +
@@ -415,7 +415,7 @@ async function confirmPayment(orderId) {
         postPaymentSuccessToChannel(orderId, updated.amount, qty, updated.chatId).catch(() => {});
     }
 
-    if (ADMIN_CHAT_ID) {
+    if (ADMIN_CHAT_ID && String(ADMIN_CHAT_ID) !== String(updated.chatId)) {
         sendMessage(ADMIN_CHAT_ID,
             `✅ <b>Pembayaran Order Selesai</b>\n` +
             `🆔 <code>${orderId}</code>\n` +
