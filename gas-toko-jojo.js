@@ -9,7 +9,7 @@
 // 5. Integrasi GoPay Gateway 24/7 + Notifikasi Channel @tokojojo
 // =========================================================================
 
-const BOT_TOKEN    = "8263331940:AAHcB-HFAufz4imo8mN5xSpw2kHHlEuxuyo";
+const BOT_TOKEN = "8263331940:AAHcB-HFAufz4imo8mN5xSpw2kHHlEuxuyo";
 const BOT_USERNAME = "@tokojojo_bot";
 
 // Chat ID admin (Anda)
@@ -29,7 +29,7 @@ const STATIC_QRIS = "00020101021126610014COM.GO-JEK.WWW0118936009143311630386021
 
 // URL GoPay Payment Gateway Anda di Tiarina Cloud
 const GOPAY_GATEWAY_URL = "https://tokojojo-a382be1azimtl5l.sg-sin1.tiarinacloud.app";
-const GOPAY_API_KEY     = "local_secret_12345";
+const GOPAY_API_KEY = "local_secret_12345";
 
 // Kolom sheet (index 0-based)
 const V = { ID: 0, CODE: 1, PRICE: 2, STATUS: 3, BUYER: 4, SOLD_AT: 5 };
@@ -53,7 +53,7 @@ function doPost(e) {
 
     if (data.message) {
       handleTelegramMessage(data.message);
-    } 
+    }
     // 2. Tangani Tombol Klik (Callback Query dari Inline Button)
     else if (data.callback_query) {
       handleCallbackQuery(data.callback_query);
@@ -158,21 +158,21 @@ function handleCallbackQuery(cq) {
 
   if (data === "menu_main") {
     sendMainMenu(chatId, voucherSheet);
-  } 
+  }
   else if (data === "menu_stock") {
     sendStockInfo(chatId, voucherSheet);
-  } 
+  }
   else if (data === "menu_buy") {
     showQuantitySelector(chatId, voucherSheet, txSheet);
-  } 
+  }
   else if (data.startsWith("buy_qty:")) {
     const qty = parseInt(data.replace("buy_qty:", ""), 10);
     processOrder(chatId, qty, voucherSheet, txSheet);
-  } 
+  }
   else if (data.startsWith("cancel_order:")) {
     const targetOrderId = data.replace("cancel_order:", "");
     cancelPendingOrder(chatId, targetOrderId, txSheet, voucherSheet);
-  } 
+  }
   else if (data.startsWith("check_order:")) {
     const targetOrderId = data.replace("check_order:", "");
     checkOrderPayment(chatId, targetOrderId, txSheet);
@@ -318,7 +318,7 @@ function sendHelp(chatId) {
     `4. Buka aplikasi m-Banking atau E-Wallet Anda (BCA, GoPay, DANA, OVO, ShopeePay, Livin', dll).\n` +
     `5. Scan QR code tersebut. Nominal akan terisi secara otomatis.\n` +
     `6. Begitu pembayaran Anda selesai, *kode promo akan dikirim detik itu juga secara otomatis!*\n\n` +
-    `Jika ada kendala, hubungi Admin: @ahmadzakiyo`;
+    `Jika ada kendala, hubungi Admin: @prasojotrii`;
 
   const keyboard = {
     inline_keyboard: [
@@ -350,11 +350,11 @@ function processOrder(chatId, qty, voucherSheet, txSheet) {
       sendMessage(chatId,
         `⏳ Anda masih punya pesanan belum dibayar: \`${pending.orderId}\` (${formatRp(pending.amount)})\n` +
         `Selesaikan atau batalkan pesanan tersebut sebelum membuat pesanan baru.`, {
-          inline_keyboard: [
-            [{ text: "❌ Batalkan Pesanan", callback_data: `cancel_order:${pending.orderId}` }],
-            [{ text: "🔙 Menu Utama", callback_data: "menu_main" }]
-          ]
-        });
+        inline_keyboard: [
+          [{ text: "❌ Batalkan Pesanan", callback_data: `cancel_order:${pending.orderId}` }],
+          [{ text: "🔙 Menu Utama", callback_data: "menu_main" }]
+        ]
+      });
       return;
     }
 
@@ -389,7 +389,7 @@ function processOrder(chatId, qty, voucherSheet, txSheet) {
 
   // 5. Daftarkan order ke GoPay Payment Gateway
   let dynamicQris = "";
-  let paymentUrl  = "";
+  let paymentUrl = "";
 
   if (GOPAY_GATEWAY_URL) {
     try {
@@ -409,7 +409,7 @@ function processOrder(chatId, qty, voucherSheet, txSheet) {
         const json = JSON.parse(res.getContentText());
         if (json.success && json.data) {
           dynamicQris = json.data.qris_code;
-          paymentUrl  = json.data.qris_url;
+          paymentUrl = json.data.qris_url;
         }
       }
     } catch (e) {
@@ -544,11 +544,11 @@ function checkOrderPayment(chatId, orderId, txSheet) {
       `⏳ *Menunggu Pembayaran!*\n\n` +
       `Pesanan \`${orderId}\` belum terdeteksi dibayar.\n` +
       `Silakan transfer sesuai nominal yang tertera di QRIS. Sistem akan mendeteksinya dalam beberapa detik setelah Anda bayar.`, {
-        inline_keyboard: [
-          [{ text: "🔄 Cek Lagi", callback_data: `check_order:${orderId}` }],
-          [{ text: "❌ Batalkan Pesanan", callback_data: `cancel_order:${orderId}` }]
-        ]
-      });
+      inline_keyboard: [
+        [{ text: "🔄 Cek Lagi", callback_data: `check_order:${orderId}` }],
+        [{ text: "❌ Batalkan Pesanan", callback_data: `cancel_order:${orderId}` }]
+      ]
+    });
   }
 }
 
@@ -568,11 +568,11 @@ function sendPendingOrderStatus(chatId, txSheet) {
     `💰 Total: *${formatRp(pending.amount)}*\n` +
     `⏳ Status: *Menunggu Pembayaran*\n\n` +
     `Silakan selesaikan pembayaran sesuai QRIS yang telah diberikan.`, {
-      inline_keyboard: [
-        [{ text: "🔄 Cek Status Bayar", callback_data: `check_order:${pending.orderId}` }],
-        [{ text: "❌ Batalkan Pesanan Ini", callback_data: `cancel_order:${pending.orderId}` }]
-      ]
-    });
+    inline_keyboard: [
+      [{ text: "🔄 Cek Status Bayar", callback_data: `check_order:${pending.orderId}` }],
+      [{ text: "❌ Batalkan Pesanan Ini", callback_data: `cancel_order:${pending.orderId}` }]
+    ]
+  });
 }
 
 // =========================================================================
@@ -596,9 +596,9 @@ function confirmPayment(orderId) {
     }
     if (found === -1) return false;
 
-    chatId      = rows[found][T.CHAT];
+    chatId = rows[found][T.CHAT];
     codesString = String(rows[found][T.CODE]);
-    amount      = rows[found][T.AMOUNT];
+    amount = rows[found][T.AMOUNT];
 
     const codes = codesString.split(",").map(c => c.trim()).filter(Boolean);
 

@@ -198,7 +198,7 @@ async function sendHelp(chatId) {
         `4. Buka aplikasi m-Banking atau E-Wallet Anda (BCA, GoPay, DANA, OVO, ShopeePay, Livin', dll).\n` +
         `5. Scan QR code tersebut. Nominal akan terisi secara otomatis.\n` +
         `6. Begitu pembayaran Anda selesai, <b>kode promo akan dikirim detik itu juga secara otomatis!</b>\n\n` +
-        `Jika ada kendala, hubungi Admin: @ahmadzakiyo`;
+        `Jika ada kendala, hubungi Admin: @prasojotrii`;
 
     const keyboard = {
         inline_keyboard: [
