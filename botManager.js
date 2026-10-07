@@ -591,35 +591,38 @@ async function handleTelegramUpdate(update) {
         const chatId = cq.message?.chat?.id;
         const data = cq.data || '';
 
-        await answerCallbackQuery(cqId);
-
-        if (data === 'menu_main') {
-            await sendMainMenu(chatId);
-        } else if (data === 'menu_stock') {
-            await sendStockInfo(chatId);
-        } else if (data === 'menu_buy') {
-            await showQuantitySelector(chatId);
-        } else if (data.startsWith('buy_qty:')) {
-            const qty = parseInt(data.replace('buy_qty:', ''), 10);
-            await processOrder(chatId, qty);
+        if (data.startsWith('check_order:')) {
+            const orderId = data.replace('check_order:', '');
+            await answerCallbackQuery(cqId, '🔍 Memeriksa mutasi pembayaran GoPay...', true);
+            await checkOrder(chatId, orderId);
         } else if (data.startsWith('cancel_order:')) {
             const orderId = data.replace('cancel_order:', '');
+            await answerCallbackQuery(cqId, '❌ Membatalkan pesanan...', false);
             await cancelOrder(chatId, orderId);
-        } else if (data.startsWith('check_order:')) {
-            const orderId = data.replace('check_order:', '');
-            await answerCallbackQuery(cqId, '🔍 Memeriksa mutasi GoPay...');
-            await checkOrder(chatId, orderId);
-        } else if (data === 'menu_my_order') {
-            const pending = storeManager.findPendingOrderByChat(chatId);
-            if (!pending) {
-                await sendMessage(chatId, `ℹ️ Anda tidak memiliki pesanan yang sedang aktif saat ini.`, {
-                    inline_keyboard: [[{ text: "🛍️ Beli Kode Promo", callback_data: "menu_buy" }]]
-                });
-            } else {
-                await checkOrder(chatId, pending.orderId);
+        } else if (data.startsWith('buy_qty:')) {
+            const qty = parseInt(data.replace('buy_qty:', ''), 10);
+            await answerCallbackQuery(cqId, '⏳ Menyiapkan tagihan QRIS...', false);
+            await processOrder(chatId, qty);
+        } else {
+            await answerCallbackQuery(cqId);
+            if (data === 'menu_main') {
+                await sendMainMenu(chatId);
+            } else if (data === 'menu_stock') {
+                await sendStockInfo(chatId);
+            } else if (data === 'menu_buy') {
+                await showQuantitySelector(chatId);
+            } else if (data === 'menu_my_order') {
+                const pending = storeManager.findPendingOrderByChat(chatId);
+                if (!pending) {
+                    await sendMessage(chatId, `ℹ️ Anda tidak memiliki pesanan yang sedang aktif saat ini.`, {
+                        inline_keyboard: [[{ text: "🛍️ Beli Kode Promo", callback_data: "menu_buy" }]]
+                    });
+                } else {
+                    await checkOrder(chatId, pending.orderId);
+                }
+            } else if (data === 'menu_help') {
+                await sendHelp(chatId);
             }
-        } else if (data === 'menu_help') {
-            await sendHelp(chatId);
         }
     }
 }
