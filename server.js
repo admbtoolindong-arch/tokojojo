@@ -87,75 +87,37 @@ async function sendTelegramMessage(chatId, text) {
     }
 }
 
-// Memicu Webhook Callback ke Google Apps Script (Toko Jojo)
+// Memicu Notifikasi Pembayaran ke Bot Telegram Toko Jojo
 async function triggerWebhookNotification(qris, transaction) {
     if (!qris) return;
     if (qris.webhookNotified) return;
     qris.webhookNotified = true;
 
-    const targetUrl = qris.webhookUrl || process.env.GAS_WEBHOOK_URL;
     const orderId = qris.orderId || qris.trxId;
-    const secret = process.env.WEBHOOK_SECRET || 'jojo-rahasia-8f3k2m9x';
     const amountRp = Number(qris.amount).toLocaleString('id-ID');
 
-    logActivity('INFO', `Memicu Webhook Pembayaran untuk Order: ${orderId} (Rp ${amountRp})`);
+    logActivity('INFO', `Memicu Konfirmasi Pembayaran untuk Order: ${orderId} (Rp ${amountRp})`);
 
     // Konfirmasi otomatis ke bot Telegram internal Toko Jojo
     try {
         await botManager.confirmPayment(orderId);
+        logActivity('SUCCESS', `Bot Toko Jojo berhasil mengonfirmasi pembayaran dan mengirimkan kode untuk ${orderId}`);
     } catch (botErr) {
         logActivity('ERROR', `Bot confirmation error: ${botErr.message}`);
     }
 
-    // 1. Kirim notifikasi Telegram ke Admin jika BOT_TOKEN & ADMIN_CHAT_ID tersedia
-    if (process.env.ADMIN_CHAT_ID) {
-        sendTelegramMessage(
-            process.env.ADMIN_CHAT_ID,
-            `🎉 *GOPAY GATEWAY: PEMBAYARAN MASUK*\n\n` +
-            `🆔 Order ID: \`${orderId}\`\n` +
-            `💰 Nominal: *Rp ${amountRp}*\n` +
-            `💳 Metode: ${transaction?.payer_issuer || 'QRIS / GoPay'}\n` +
-            `🕒 Waktu: ${transaction?.transaction_time ? new Date(transaction.transaction_time).toLocaleString('id-ID') : new Date().toLocaleString('id-ID')}\n\n` +
-            `⚡ Mengirim sinyal webhook ke Toko Jojo...`
-        ).catch(() => {});
-    }
-
-    // Kirim notifikasi ke Channel Publik / Log Transaksi jika CHANNEL_ID tersedia
-    if (process.env.CHANNEL_ID) {
-        sendTelegramMessage(
-            process.env.CHANNEL_ID,
-            `🎉 *TRANSAKSI BERHASIL / LUNAS*\n\n` +
-            `🆔 Order ID: \`${orderId}\`\n` +
-            `💰 Nominal: *Rp ${amountRp}*\n` +
-            `💳 Pembayaran: *QRIS / GoPay*\n` +
-            `🕒 Waktu: ${transaction?.transaction_time ? new Date(transaction.transaction_time).toLocaleString('id-ID') : new Date().toLocaleString('id-ID')}`
-        ).catch(() => {});
-    }
-
-    // 2. Kirim Webhook ke GAS Web App
-    if (!targetUrl) {
-        logActivity('WARNING', `GAS_WEBHOOK_URL belum diset di .env, webhook untuk order ${orderId} dilewati.`);
-        return;
-    }
-
-    try {
-        const payload = {
-            order_id: orderId,
-            status: 'PAID',
-            amount: qris.amount,
-            secret: secret,
-            transaction: transaction
-        };
-
-        const res = await axios.post(targetUrl, payload, {
-            headers: { 'Content-Type': 'application/json' },
-            timeout: 15000,
-            maxRedirects: 5
-        });
-
-        logActivity('SUCCESS', `Webhook Toko Jojo berhasil terkirim untuk order ${orderId} (HTTP ${res.status})`);
-    } catch (err) {
-        logActivity('ERROR', `Gagal mengirim webhook ke GAS untuk order ${orderId}: ${err.message}`);
+    // Jika ada custom webhook eksternal opsional
+    if (qris.webhookUrl) {
+        try {
+            await axios.post(qris.webhookUrl, {
+                order_id: orderId,
+                status: 'PAID',
+                amount: qris.amount,
+                transaction: transaction
+            }, { timeout: 10000 });
+        } catch (err) {
+            logActivity('ERROR', `Gagal mengirim custom webhook untuk order ${orderId}: ${err.message}`);
+        }
     }
 }
 
@@ -361,7 +323,7 @@ app.get('/token-status', apiKeyAuth, async (req, res) => {
 app.all('/create-qris', apiKeyAuth, (req, res) => {
     const amount = req.body?.amount || req.query?.amount;
     const customOrderId = req.body?.order_id || req.query?.order_id || req.body?.trx_id || req.query?.trx_id;
-    const webhookUrl = req.body?.webhook_url || req.query?.webhook_url || process.env.GAS_WEBHOOK_URL;
+    const webhookUrl = req.body?.webhook_url || req.query?.webhook_url;
     const expiryMinutes = parseInt(req.body?.expire_minutes || req.query?.expire_minutes, 10) || 30;
 
     if (!amount || isNaN(amount) || amount <= 0) {
