@@ -21,24 +21,23 @@ const claimedTransactions = new Map();
 const activityLogs = [];
 const qrisStore = new Map();
 
-// Auto-restore sesi GoPay dari Environment Variable jika file belum ada
+// Auto-restore sesi GoPay ke container jika file belum ada
 const SESSION_FILE = path.join(__dirname, '.GOPAY_SESI_JANGAN_DIHAPUS.json');
 if (!fs.existsSync(SESSION_FILE)) {
-    if (process.env.GOPAY_SESSION_BASE64) {
-        try {
-            const decoded = Buffer.from(process.env.GOPAY_SESSION_BASE64, 'base64').toString('utf-8');
+    try {
+        let defaultB64 = '';
+        try { defaultB64 = require('./defaultSession'); } catch (e) {}
+        const raw = process.env.GOPAY_SESSION_BASE64 || defaultB64;
+        if (raw) {
+            const decoded = Buffer.from(raw, 'base64').toString('utf-8');
             fs.writeFileSync(SESSION_FILE, decoded, 'utf-8');
-            console.log('[Server] Sesi GoPay berhasil di-restore dari GOPAY_SESSION_BASE64');
-        } catch (e) {
-            console.error('[Server] Gagal decode GOPAY_SESSION_BASE64:', e.message);
-        }
-    } else if (process.env.GOPAY_SESSION_DATA) {
-        try {
+            console.log('[Server] Sesi GoPay berhasil diinisialisasi otomatis ke container');
+        } else if (process.env.GOPAY_SESSION_DATA) {
             fs.writeFileSync(SESSION_FILE, process.env.GOPAY_SESSION_DATA, 'utf-8');
             console.log('[Server] Sesi GoPay berhasil di-restore dari GOPAY_SESSION_DATA');
-        } catch (e) {
-            console.error('[Server] Gagal tulis GOPAY_SESSION_DATA:', e.message);
         }
+    } catch (e) {
+        console.error('[Server] Gagal inisialisasi sesi GoPay:', e.message);
     }
 }
 

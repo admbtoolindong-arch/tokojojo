@@ -593,7 +593,7 @@ async function handleTelegramUpdate(update) {
 
         if (data.startsWith('check_order:')) {
             const orderId = data.replace('check_order:', '');
-            await answerCallbackQuery(cqId, '🔍 Memeriksa mutasi pembayaran GoPay...', true);
+            await answerCallbackQuery(cqId, '🔍 Memeriksa mutasi pembayaran GoPay...', false);
             await checkOrder(chatId, orderId);
         } else if (data.startsWith('cancel_order:')) {
             const orderId = data.replace('cancel_order:', '');
