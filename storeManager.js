@@ -233,6 +233,7 @@ function addVouchers(codes, price = 1000) {
 module.exports = {
   initStore,
   getVouchers,
+  getTransactions,
   countAvailable,
   getCurrentPrice,
   findPendingOrderByChat,

@@ -362,52 +362,57 @@ async function cancelOrder(chatId, specificOrderId = null) {
 // -------------------------------------------------------------
 
 async function checkOrder(chatId, orderId) {
-    const txs = storeManager.getTransactions();
-    const order = txs.find(t => t.orderId === orderId);
+    try {
+        const txs = storeManager.getTransactions();
+        const order = txs.find(t => t.orderId === orderId);
 
-    if (!order) {
-        return sendMessage(chatId, `⚠️ Order <code>${orderId}</code> tidak ditemukan.`);
-    }
-
-    if (order.status === 'SUCCESS') {
-        return sendMessage(chatId, `🎉 Pesanan <code>${orderId}</code> sudah LUNAS! Kode promo telah dikirimkan ke Anda.`);
-    }
-
-    if (order.status === 'CANCELLED' || order.status === 'EXPIRED') {
-        return sendMessage(chatId, `⚠️ Pesanan <code>${orderId}</code> telah berstatus <b>${order.status}</b>.`);
-    }
-
-    // Pengecekan aktif ke API GoPay secara langsung
-    if (verifyPaymentRef) {
-        try {
-            const matched = await verifyPaymentRef(order.amount, order.createdAt, null, 'Bot-CheckOrder', orderId);
-            if (matched) {
-                await confirmPayment(orderId);
-                return;
-            }
-        } catch (e) {
-            console.error('[BotManager] checkOrder verifyPayment error:', e.message);
+        if (!order) {
+            return sendMessage(chatId, `⚠️ Order <code>${orderId}</code> tidak ditemukan.`);
         }
+
+        if (order.status === 'SUCCESS') {
+            return sendMessage(chatId, `🎉 Pesanan <code>${orderId}</code> sudah LUNAS! Kode promo telah dikirimkan ke Anda.`);
+        }
+
+        if (order.status === 'CANCELLED' || order.status === 'EXPIRED') {
+            return sendMessage(chatId, `⚠️ Pesanan <code>${orderId}</code> telah berstatus <b>${order.status}</b>.`);
+        }
+
+        // Pengecekan aktif ke API GoPay secara langsung
+        if (verifyPaymentRef) {
+            try {
+                const matched = await verifyPaymentRef(order.amount, order.createdAt, null, 'Bot-CheckOrder', orderId);
+                if (matched) {
+                    await confirmPayment(orderId);
+                    return;
+                }
+            } catch (e) {
+                console.error('[BotManager] checkOrder verifyPayment error:', e.message);
+            }
+        }
+
+        const checkTime = new Intl.DateTimeFormat('id-ID', {
+            timeZone: 'Asia/Jakarta',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        }).format(new Date()) + ' WIB';
+
+        return sendMessage(chatId,
+            `⏳ <b>STATUS: MENUNGGU PEMBAYARAN</b>\n\n` +
+            `🆔 Order ID: <code>${orderId}</code>\n` +
+            `💰 Nominal Persis: <b>${formatRp(order.amount)}</b>\n` +
+            `🕒 Terakhir Dicek: <code>${checkTime}</code>\n\n` +
+            `Mutasi pembayaran belum terdeteksi di GoPay. Jika baru saja transfer, mohon tunggu 5-10 detik lalu klik tombol di bawah untuk mengecek kembali.`, {
+                inline_keyboard: [
+                    [{ text: "🔄 Cek Status Bayar Lagi", callback_data: `check_order:${orderId}` }],
+                    [{ text: "❌ Batalkan Pesanan", callback_data: `cancel_order:${orderId}` }]
+                ]
+            });
+    } catch (err) {
+        console.error('[BotManager] checkOrder error:', err);
+        return sendMessage(chatId, `⚠️ Terjadi kendala saat memeriksa pesanan: ${err.message}`);
     }
-
-    const checkTime = new Intl.DateTimeFormat('id-ID', {
-        timeZone: 'Asia/Jakarta',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-    }).format(new Date()) + ' WIB';
-
-    return sendMessage(chatId,
-        `⏳ <b>STATUS: MENUNGGU PEMBAYARAN</b>\n\n` +
-        `🆔 Order ID: <code>${orderId}</code>\n` +
-        `💰 Nominal Persis: <b>${formatRp(order.amount)}</b>\n` +
-        `🕒 Terakhir Dicek: <code>${checkTime}</code>\n\n` +
-        `Mutasi pembayaran belum terdeteksi di GoPay. Jika baru saja transfer, mohon tunggu 5-10 detik lalu klik tombol di bawah untuk mengecek kembali.`, {
-            inline_keyboard: [
-                [{ text: "🔄 Cek Status Bayar Lagi", callback_data: `check_order:${orderId}` }],
-                [{ text: "❌ Batalkan Pesanan", callback_data: `cancel_order:${orderId}` }]
-            ]
-        });
 }
 
 // -------------------------------------------------------------
