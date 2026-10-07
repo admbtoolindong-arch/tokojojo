@@ -5,6 +5,8 @@ const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
 const sessionManager = require('./sessionManager');
+const storeManager = require('./storeManager');
+const botManager = require('./botManager');
 
 const PORT = process.env.PORT || 3000;
 const MAX_LOGS = 100;
@@ -97,6 +99,13 @@ async function triggerWebhookNotification(qris, transaction) {
     const amountRp = Number(qris.amount).toLocaleString('id-ID');
 
     logActivity('INFO', `Memicu Webhook Pembayaran untuk Order: ${orderId} (Rp ${amountRp})`);
+
+    // Konfirmasi otomatis ke bot Telegram internal Toko Jojo
+    try {
+        await botManager.confirmPayment(orderId);
+    } catch (botErr) {
+        logActivity('ERROR', `Bot confirmation error: ${botErr.message}`);
+    }
 
     // 1. Kirim notifikasi Telegram ke Admin jika BOT_TOKEN & ADMIN_CHAT_ID tersedia
     if (process.env.ADMIN_CHAT_ID) {
@@ -285,6 +294,10 @@ function generateDynamicQRIS(staticTemplate, amount) {
     const checksum = calculateCRC16(result);
     return result + checksum;
 }
+
+// Inisialisasi Toko Jojo & Bot Manager
+storeManager.initStore();
+botManager.setServerReferences(qrisStore, generateDynamicQRIS);
 
 // Middleware Proteksi API Key
 const apiKeyAuth = (req, res, next) => {
@@ -960,6 +973,56 @@ app.get('/api/logs', apiKeyAuth, (req, res) => {
     res.json({ success: true, logs: activityLogs });
 });
 
+// Endpoint Webhook Telegram
+app.post('/api/telegram-webhook', async (req, res) => {
+    try {
+        await botManager.handleTelegramUpdate(req.body);
+    } catch (err) {
+        logActivity('ERROR', `Gagal proses Telegram update: ${err.message}`);
+    }
+    res.sendStatus(200);
+});
+
+// Helper Setup Webhook Telegram ke URL Gateway
+app.get('/api/set-telegram-webhook', apiKeyAuth, async (req, res) => {
+    const defaultUrl = `https://${req.get('host')}/api/telegram-webhook`;
+    const targetUrl = req.query.url || defaultUrl;
+    try {
+        const result = await axios.post(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/setWebhook`, { url: targetUrl });
+        res.json({ success: true, webhook_url: targetUrl, telegram_response: result.data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.response?.data || e.message });
+    }
+});
+
+// Endpoint Toko: Info Stok
+app.get('/api/store/stock', apiKeyAuth, (req, res) => {
+    res.json({
+        success: true,
+        available: storeManager.countAvailable(),
+        price: storeManager.getCurrentPrice(),
+        vouchers: storeManager.getVouchers()
+    });
+});
+
+// Endpoint Toko: Tambah Stok Voucher
+app.post('/api/store/add', apiKeyAuth, (req, res) => {
+    const { codes, price } = req.body;
+    if (!codes || !Array.isArray(codes)) {
+        return res.status(400).json({ success: false, message: 'Field codes harus berupa array kode promo' });
+    }
+    const added = storeManager.addVouchers(codes, price);
+    res.json({ success: true, added_count: added.length, available_total: storeManager.countAvailable() });
+});
+
+// Endpoint Toko: Daftar Transaksi
+app.get('/api/store/transactions', apiKeyAuth, (req, res) => {
+    res.json({ success: true, transactions: storeManager.getTransactions() });
+});
+
 app.listen(PORT, () => {
     logActivity('SYSTEM', `GoPay Partner Gateway berjalan pada port ${PORT}`);
+    if (process.env.TELEGRAM_POLLING === 'true') {
+        botManager.startPolling();
+    }
 });
