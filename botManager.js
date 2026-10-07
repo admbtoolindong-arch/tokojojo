@@ -79,6 +79,49 @@ async function answerCallbackQuery(callbackQueryId, text = null, showAlert = fal
 }
 
 // -------------------------------------------------------------
+// VALIDASI SUBSCRIPTION CHANNEL
+// -------------------------------------------------------------
+
+async function isUserSubscribed(userId) {
+    if (!CHANNEL_ID) return true;
+    if (String(userId) === String(ADMIN_CHAT_ID)) return true;
+    try {
+        const res = await callTelegram('getChatMember', {
+            chat_id: CHANNEL_ID,
+            user_id: userId
+        });
+        if (res && res.ok && res.result) {
+            const status = res.result.status;
+            return ['creator', 'administrator', 'member', 'restricted'].includes(status);
+        }
+        return false;
+    } catch (err) {
+        console.error('[BotManager] Error checking subscription:', err.message);
+        return true; // Jika ada error API Telegram, tidak mengunci user
+    }
+}
+
+async function sendSubscriptionRequired(chatId) {
+    const channelName = String(CHANNEL_ID).replace('@', '');
+    const channelUrl = `https://t.me/${channelName}`;
+    const text =
+        `🔒 <b>WAJIB GABUNG CHANNEL TERLEBIH DAHULU</b>\n\n` +
+        `Halo kak! Untuk berbelanja atau menggunakan bot <b>TOKO DIGITAL JOJO</b>, Anda wajib bergabung ke channel resmi kami terlebih dahulu:\n\n` +
+        `📢 <b>Channel Resmi:</b> <a href="${channelUrl}">${CHANNEL_ID}</a>\n\n` +
+        `<i>Dapatkan info update stok Google Drive 5 TB, voucher diskon, dan bukti transaksi otomatis di channel kami.</i>\n\n` +
+        `Setelah bergabung, silakan klik tombol <b>✅ Saya Sudah Join (Verifikasi)</b> di bawah ini:`;
+
+    const keyboard = {
+        inline_keyboard: [
+            [{ text: `📢 Gabung Channel ${CHANNEL_ID}`, url: channelUrl }],
+            [{ text: `✅ Saya Sudah Join (Verifikasi)`, callback_data: `check_subscription` }]
+        ]
+    };
+
+    return sendMessage(chatId, text, keyboard);
+}
+
+// -------------------------------------------------------------
 // MENU DAN TAMPILAN
 // -------------------------------------------------------------
 
@@ -89,15 +132,15 @@ async function sendMainMenu(chatId) {
 
     const text =
         `👋 <b>Selamat Datang di TOKO DIGITAL JOJO!</b>\n\n` +
-        `Menyediakan Kode Promo Google Drive Resmi &amp; Instan 24 Jam.\n\n` +
-        `📦 <b>Stok Kode Promo:</b> <code>${count} Pcs</code>\n` +
+        `Menyediakan <b>Google Drive 5 TB</b> Resmi &amp; Instan 24 Jam.\n\n` +
+        `📦 <b>Stok Google Drive 5 TB:</b> <code>${count} Pcs</code>\n` +
         (price ? `💰 <b>Harga:</b> <code>${formatRp(price)} / Pcs</code>\n\n` : `\n`) +
         `Silakan pilih menu di bawah ini:`;
 
     const keyboard = {
         inline_keyboard: [
             [
-                { text: "🛍️ Beli Kode Promo", callback_data: "menu_buy" },
+                { text: "🛍️ Beli Google Drive 5 TB", callback_data: "menu_buy" },
                 { text: "📦 Cek Stok & Harga", callback_data: "menu_stock" }
             ],
             [
@@ -117,7 +160,7 @@ async function sendStockInfo(chatId) {
 
     const text =
         `📦 <b>INFORMASI STOK &amp; HARGA</b>\n\n` +
-        `🛍️ Produk: <b>Kode Promo Google Drive</b>\n` +
+        `🛍️ Produk: <b>Google Drive 5 TB</b>\n` +
         `📦 Stok Tersedia: <b>${count} Pcs</b>\n` +
         `💰 Harga Satuan: <b>${formatRp(price)}</b>\n` +
         `⚡ Pengiriman: <b>Otomatis Instan 24 Jam</b>\n` +
@@ -126,7 +169,7 @@ async function sendStockInfo(chatId) {
 
     const keyboard = {
         inline_keyboard: [
-            count > 0 ? [{ text: "🛍️ Beli Sekarang", callback_data: "menu_buy" }] : [],
+            count > 0 ? [{ text: "🛍️ Beli Google Drive 5 TB", callback_data: "menu_buy" }] : [],
             [{ text: "🔙 Kembali ke Menu", callback_data: "menu_main" }]
         ].filter(r => r.length > 0)
     };
@@ -142,6 +185,7 @@ async function showQuantitySelector(chatId) {
         const text =
             `⏳ <b>Anda Masih Punya Pesanan Belum Dibayar!</b>\n\n` +
             `🆔 Order ID: <code>${pending.orderId}</code>\n` +
+            `🛍️ Produk: <b>Google Drive 5 TB</b>\n` +
             `📦 Jumlah: <b>${pending.codes.length} Pcs</b>\n` +
             `💰 Total: <b>${formatRp(pending.amount)}</b>\n\n` +
             `Silakan selesaikan pembayaran pesanan Anda, atau batalkan pesanan tersebut untuk membuat pesanan baru.`;
@@ -164,16 +208,17 @@ async function showQuantitySelector(chatId) {
     const price = storeManager.getCurrentPrice();
 
     if (count <= 0) {
-        return sendMessage(chatId, `❌ <b>Maaf, stok Kode Promo sedang HABIS.</b> Silakan cek kembali nanti.`, {
+        return sendMessage(chatId, `❌ <b>Maaf, stok Google Drive 5 TB sedang HABIS.</b> Silakan cek kembali nanti.`, {
             inline_keyboard: [[{ text: "🔙 Menu Utama", callback_data: "menu_main" }]]
         });
     }
 
     const text =
         `🛍️ <b>PILIH JUMLAH PEMBELIAN</b>\n\n` +
+        `🛍️ Produk: <b>Google Drive 5 TB</b>\n` +
         `📦 Stok Tersedia: <b>${count} Pcs</b>\n` +
         `💰 Harga Satuan: <b>${formatRp(price)}</b>\n\n` +
-        `Pilih berapa banyak kode promo yang ingin Anda beli:`;
+        `Pilih berapa banyak yang ingin Anda beli:`;
 
     const rows = [];
     const presets = [1, 2, 3, 5, 10];
@@ -197,12 +242,12 @@ async function showQuantitySelector(chatId) {
 async function sendHelp(chatId) {
     const text =
         `ℹ️ <b>PANDUAN PEMBELIAN TOKO DIGITAL JOJO</b>\n\n` +
-        `1. Klik menu <b>🛍️ Beli Kode Promo</b>.\n` +
-        `2. Pilih jumlah kode yang ingin Anda beli (1 Pcs, 2 Pcs, dst).\n` +
+        `1. Klik menu <b>🛍️ Beli Google Drive 5 TB</b>.\n` +
+        `2. Pilih jumlah yang ingin Anda beli (1 Pcs, 2 Pcs, dst).\n` +
         `3. Bot akan mengirimkan gambar <b>QRIS Dinamis</b> dengan nominal total persis.\n` +
         `4. Buka aplikasi m-Banking atau E-Wallet Anda (BCA, GoPay, DANA, OVO, ShopeePay, Livin', dll).\n` +
         `5. Scan QR code tersebut. Nominal akan terisi secara otomatis.\n` +
-        `6. Begitu pembayaran Anda selesai, <b>kode promo akan dikirim detik itu juga secara otomatis!</b>\n\n` +
+        `6. Begitu pembayaran Anda selesai, <b>kode promo Google Drive 5 TB akan dikirim detik itu juga secara otomatis!</b>\n\n` +
         `Jika ada kendala, hubungi Admin: @prasojotrii`;
 
     const keyboard = {
@@ -280,9 +325,9 @@ async function processOrder(chatId, qty) {
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=450x450&margin=10&data=${encodeURIComponent(dynamicQris || 'QRIS_GATEWAY')}`;
 
     const caption =
-        `📲 <b>TAGIHAN PEMBAYARAN KODE PROMO GOOGLE DRIVE</b>\n\n` +
+        `📲 <b>TAGIHAN PEMBAYARAN GOOGLE DRIVE 5 TB</b>\n\n` +
         `🆔 Order ID: <code>${orderId}</code>\n` +
-        `🛍️ Produk: <b>Kode Promo Google Drive</b>\n` +
+        `🛍️ Produk: <b>Google Drive 5 TB</b>\n` +
         `📦 Jumlah: <b>${qty} Pcs</b>\n` +
         `💰 Harga Barang: ${formatRp(basePrice)}\n` +
         `🔢 Kode Unik: +${formatRp(uniqueCode)}\n` +
@@ -291,7 +336,7 @@ async function processOrder(chatId, qty) {
         `⏳ Batas Waktu: <b>${ORDER_EXPIRE_MINUTES} Menit</b>\n\n` +
         `Scan QR di atas dengan GoPay, BCA, DANA, OVO, ShopeePay, atau m-Banking.\n` +
         `<i>(Nominal ${formatRp(totalPayment)} sudah otomatis terisi saat scan QR)</i>\n\n` +
-        `⚡ <b>${qty} Kode promo akan dikirim detik itu juga secara otomatis!</b>`;
+        `⚡ <b>${qty} Kode promo Google Drive 5 TB akan dikirim detik itu juga secara otomatis!</b>`;
 
     const keyboard = {
         inline_keyboard: [
@@ -470,7 +515,7 @@ async function postNewOrderToChannel(orderId, amount, qty, chatId) {
     const text =
         `🛎 <b>ORDER BARU MASUK</b>\n\n` +
         `🆔 Order: <code>${orderId}</code>\n` +
-        `🛍️ Produk: <b>Kode Promo Google Drive (${qty} Pcs)</b>\n` +
+        `🛍️ Produk: <b>Google Drive 5 TB (${qty} Pcs)</b>\n` +
         `💰 Total: <b>${formatRp(amount)}</b>\n` +
         `👤 Pembeli: <code>${masked}</code>\n` +
         `🕒 ${time}\n` +
@@ -486,11 +531,11 @@ async function postPaymentSuccessToChannel(orderId, amount, qty, chatId) {
     const text =
         `🎉 <b>TRANSAKSI BERHASIL / LUNAS!</b>\n\n` +
         `🆔 Order: <code>${orderId}</code>\n` +
-        `🛍️ Produk: <b>Kode Promo Google Drive (${qty} Pcs)</b>\n` +
+        `🛍️ Produk: <b>Google Drive 5 TB (${qty} Pcs)</b>\n` +
         `💰 Total: <b>${formatRp(amount)}</b>\n` +
         `👤 Pembeli: <code>${masked}</code>\n` +
         `🕒 ${time}\n\n` +
-        `✅ <b>${qty} Kode promo terkirim otomatis!</b>\n` +
+        `✅ <b>${qty} Kode promo Google Drive 5 TB terkirim otomatis!</b>\n` +
         `🛒 Order via @tokojojo_bot`;
 
     return sendMessage(CHANNEL_ID, text);
@@ -506,9 +551,19 @@ async function handleTelegramUpdate(update) {
     if (update.message) {
         const msg = update.message;
         const chatId = msg.chat?.id;
+        const userId = msg.from?.id || chatId;
         const text = (msg.text || '').trim();
         const parts = text.split(/\s+/);
         const cmd = parts[0].toLowerCase().replace(/@\w+/, '');
+
+        // Validasi wajib langganan channel untuk pengguna (kecuali admin & /myid)
+        if (cmd !== '/myid' && String(chatId) !== String(ADMIN_CHAT_ID)) {
+            const isSub = await isUserSubscribed(userId);
+            if (!isSub) {
+                await sendSubscriptionRequired(chatId);
+                return;
+            }
+        }
 
         switch (cmd) {
             case '/start':
@@ -546,7 +601,7 @@ async function handleTelegramUpdate(update) {
                 const pending = storeManager.findPendingOrderByChat(chatId);
                 if (!pending) {
                     await sendMessage(chatId, `ℹ️ Anda tidak memiliki pesanan yang sedang aktif saat ini.`, {
-                        inline_keyboard: [[{ text: "🛍️ Beli Kode Promo", callback_data: "menu_buy" }]]
+                        inline_keyboard: [[{ text: "🛍️ Beli Google Drive 5 TB", callback_data: "menu_buy" }]]
                     });
                 } else {
                     await checkOrder(chatId, pending.orderId);
@@ -594,7 +649,32 @@ async function handleTelegramUpdate(update) {
         const cq = update.callback_query;
         const cqId = cq.id;
         const chatId = cq.message?.chat?.id;
+        const userId = cq.from?.id || chatId;
         const data = cq.data || '';
+
+        // Penanganan tombol verifikasi langganan channel
+        if (data === 'check_subscription') {
+            const isSub = await isUserSubscribed(userId);
+            if (isSub) {
+                await answerCallbackQuery(cqId, '✅ Verifikasi berhasil! Selamat datang.', false);
+                await sendMessage(chatId, `🎉 <b>Verifikasi Berhasil!</b> Terima kasih telah bergabung ke channel kami.`);
+                await sendMainMenu(chatId);
+            } else {
+                await answerCallbackQuery(cqId, '❌ Anda belum terdeteksi bergabung ke channel!', false);
+                await sendSubscriptionRequired(chatId);
+            }
+            return;
+        }
+
+        // Validasi wajib join channel untuk aksi tombol (kecuali admin)
+        if (String(chatId) !== String(ADMIN_CHAT_ID)) {
+            const isSub = await isUserSubscribed(userId);
+            if (!isSub) {
+                await answerCallbackQuery(cqId, '🔒 Wajib gabung channel terlebih dahulu!', false);
+                await sendSubscriptionRequired(chatId);
+                return;
+            }
+        }
 
         if (data.startsWith('check_order:')) {
             const orderId = data.replace('check_order:', '');
@@ -620,7 +700,7 @@ async function handleTelegramUpdate(update) {
                 const pending = storeManager.findPendingOrderByChat(chatId);
                 if (!pending) {
                     await sendMessage(chatId, `ℹ️ Anda tidak memiliki pesanan yang sedang aktif saat ini.`, {
-                        inline_keyboard: [[{ text: "🛍️ Beli Kode Promo", callback_data: "menu_buy" }]]
+                        inline_keyboard: [[{ text: "🛍️ Beli Google Drive 5 TB", callback_data: "menu_buy" }]]
                     });
                 } else {
                     await checkOrder(chatId, pending.orderId);

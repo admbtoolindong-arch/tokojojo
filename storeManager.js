@@ -7,16 +7,16 @@ const ORDER_EXPIRE_MINUTES = 30;
 
 // Data awal (Dummy Promo Codes) jika belum ada file
 const DEFAULT_VOUCHERS = [
-  { id: 1, code: "GDRIVE-PROMO-1TB-01", price: 1000, status: "AVAILABLE", buyer: null, sold_at: null },
-  { id: 2, code: "GDRIVE-PROMO-1TB-02", price: 1000, status: "AVAILABLE", buyer: null, sold_at: null },
-  { id: 3, code: "GDRIVE-PROMO-1TB-03", price: 1000, status: "AVAILABLE", buyer: null, sold_at: null },
-  { id: 4, code: "GDRIVE-PROMO-1TB-04", price: 1000, status: "AVAILABLE", buyer: null, sold_at: null },
-  { id: 5, code: "GDRIVE-PROMO-1TB-05", price: 1000, status: "AVAILABLE", buyer: null, sold_at: null },
-  { id: 6, code: "GDRIVE-PROMO-1TB-06", price: 1000, status: "AVAILABLE", buyer: null, sold_at: null },
-  { id: 7, code: "GDRIVE-PROMO-1TB-07", price: 1000, status: "AVAILABLE", buyer: null, sold_at: null },
-  { id: 8, code: "GDRIVE-PROMO-1TB-08", price: 1000, status: "AVAILABLE", buyer: null, sold_at: null },
-  { id: 9, code: "GDRIVE-PROMO-1TB-09", price: 1000, status: "AVAILABLE", buyer: null, sold_at: null },
-  { id: 10, code: "GDRIVE-PROMO-1TB-10", price: 1000, status: "AVAILABLE", buyer: null, sold_at: null }
+  { id: 1, code: "GDRIVE-PROMO-5TB-01", price: 1000, status: "AVAILABLE", buyer: null, sold_at: null },
+  { id: 2, code: "GDRIVE-PROMO-5TB-02", price: 1000, status: "AVAILABLE", buyer: null, sold_at: null },
+  { id: 3, code: "GDRIVE-PROMO-5TB-03", price: 1000, status: "AVAILABLE", buyer: null, sold_at: null },
+  { id: 4, code: "GDRIVE-PROMO-5TB-04", price: 1000, status: "AVAILABLE", buyer: null, sold_at: null },
+  { id: 5, code: "GDRIVE-PROMO-5TB-05", price: 1000, status: "AVAILABLE", buyer: null, sold_at: null },
+  { id: 6, code: "GDRIVE-PROMO-5TB-06", price: 1000, status: "AVAILABLE", buyer: null, sold_at: null },
+  { id: 7, code: "GDRIVE-PROMO-5TB-07", price: 1000, status: "AVAILABLE", buyer: null, sold_at: null },
+  { id: 8, code: "GDRIVE-PROMO-5TB-08", price: 1000, status: "AVAILABLE", buyer: null, sold_at: null },
+  { id: 9, code: "GDRIVE-PROMO-5TB-09", price: 1000, status: "AVAILABLE", buyer: null, sold_at: null },
+  { id: 10, code: "GDRIVE-PROMO-5TB-10", price: 1000, status: "AVAILABLE", buyer: null, sold_at: null }
 ];
 
 function initStore() {
