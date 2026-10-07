@@ -7,16 +7,16 @@ const ORDER_EXPIRE_MINUTES = 30;
 
 // Data awal (Dummy Promo Codes) jika belum ada file
 const DEFAULT_VOUCHERS = [
-  { id: 1, code: "JOJO-PROMO-15K-A1", price: 15000, status: "AVAILABLE", buyer: null, sold_at: null },
-  { id: 2, code: "JOJO-PROMO-15K-B2", price: 15000, status: "AVAILABLE", buyer: null, sold_at: null },
-  { id: 3, code: "JOJO-PROMO-15K-C3", price: 15000, status: "AVAILABLE", buyer: null, sold_at: null },
-  { id: 4, code: "JOJO-PROMO-15K-D4", price: 15000, status: "AVAILABLE", buyer: null, sold_at: null },
-  { id: 5, code: "JOJO-PROMO-15K-E5", price: 15000, status: "AVAILABLE", buyer: null, sold_at: null },
-  { id: 6, code: "JOJO-PROMO-15K-F6", price: 15000, status: "AVAILABLE", buyer: null, sold_at: null },
-  { id: 7, code: "JOJO-PROMO-15K-G7", price: 15000, status: "AVAILABLE", buyer: null, sold_at: null },
-  { id: 8, code: "JOJO-PROMO-15K-H8", price: 15000, status: "AVAILABLE", buyer: null, sold_at: null },
-  { id: 9, code: "JOJO-PROMO-15K-I9", price: 15000, status: "AVAILABLE", buyer: null, sold_at: null },
-  { id: 10, code: "JOJO-PROMO-15K-J10", price: 15000, status: "AVAILABLE", buyer: null, sold_at: null }
+  { id: 1, code: "GDRIVE-PROMO-1TB-01", price: 1000, status: "AVAILABLE", buyer: null, sold_at: null },
+  { id: 2, code: "GDRIVE-PROMO-1TB-02", price: 1000, status: "AVAILABLE", buyer: null, sold_at: null },
+  { id: 3, code: "GDRIVE-PROMO-1TB-03", price: 1000, status: "AVAILABLE", buyer: null, sold_at: null },
+  { id: 4, code: "GDRIVE-PROMO-1TB-04", price: 1000, status: "AVAILABLE", buyer: null, sold_at: null },
+  { id: 5, code: "GDRIVE-PROMO-1TB-05", price: 1000, status: "AVAILABLE", buyer: null, sold_at: null },
+  { id: 6, code: "GDRIVE-PROMO-1TB-06", price: 1000, status: "AVAILABLE", buyer: null, sold_at: null },
+  { id: 7, code: "GDRIVE-PROMO-1TB-07", price: 1000, status: "AVAILABLE", buyer: null, sold_at: null },
+  { id: 8, code: "GDRIVE-PROMO-1TB-08", price: 1000, status: "AVAILABLE", buyer: null, sold_at: null },
+  { id: 9, code: "GDRIVE-PROMO-1TB-09", price: 1000, status: "AVAILABLE", buyer: null, sold_at: null },
+  { id: 10, code: "GDRIVE-PROMO-1TB-10", price: 1000, status: "AVAILABLE", buyer: null, sold_at: null }
 ];
 
 function initStore() {
@@ -64,7 +64,7 @@ function countAvailable() {
 function getCurrentPrice() {
   const vouchers = getVouchers();
   const available = vouchers.find(v => v.status === 'AVAILABLE');
-  return available ? available.price : 15000;
+  return available ? available.price : 1000;
 }
 
 function findPendingOrderByChat(chatId) {
@@ -204,7 +204,7 @@ function getAvailableUniqueCode(basePrice, min = 1, max = 299) {
 }
 
 // Tambah voucher baru oleh admin
-function addVouchers(codes, price = 15000) {
+function addVouchers(codes, price = 1000) {
   const vouchers = getVouchers();
   let maxId = vouchers.reduce((max, v) => (v.id > max ? v.id : max), 0);
 

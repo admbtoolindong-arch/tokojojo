@@ -84,7 +84,7 @@ async function sendMainMenu(chatId) {
 
     const text =
         `👋 <b>Selamat Datang di TOKO DIGITAL JOJO!</b>\n\n` +
-        `Menyediakan Kode Promo Resmi &amp; Instan 24 Jam.\n\n` +
+        `Menyediakan Kode Promo Google Drive Resmi &amp; Instan 24 Jam.\n\n` +
         `📦 <b>Stok Kode Promo:</b> <code>${count} Pcs</code>\n` +
         (price ? `💰 <b>Harga:</b> <code>${formatRp(price)} / Pcs</code>\n\n` : `\n`) +
         `Silakan pilih menu di bawah ini:`;
@@ -112,7 +112,7 @@ async function sendStockInfo(chatId) {
 
     const text =
         `📦 <b>INFORMASI STOK &amp; HARGA</b>\n\n` +
-        `🛍️ Produk: <b>Kode Promo Digital</b>\n` +
+        `🛍️ Produk: <b>Kode Promo Google Drive</b>\n` +
         `📦 Stok Tersedia: <b>${count} Pcs</b>\n` +
         `💰 Harga Satuan: <b>${formatRp(price)}</b>\n` +
         `⚡ Pengiriman: <b>Otomatis Instan 24 Jam</b>\n` +
@@ -275,8 +275,9 @@ async function processOrder(chatId, qty) {
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=450x450&margin=10&data=${encodeURIComponent(dynamicQris || 'QRIS_GATEWAY')}`;
 
     const caption =
-        `📲 <b>TAGIHAN PEMBAYARAN KODE PROMO</b>\n\n` +
+        `📲 <b>TAGIHAN PEMBAYARAN KODE PROMO GOOGLE DRIVE</b>\n\n` +
         `🆔 Order ID: <code>${orderId}</code>\n` +
+        `🛍️ Produk: <b>Kode Promo Google Drive</b>\n` +
         `📦 Jumlah: <b>${qty} Pcs</b>\n` +
         `💰 Harga Barang: ${formatRp(basePrice)}\n` +
         `🔢 Kode Unik: +${formatRp(uniqueCode)}\n` +
@@ -437,7 +438,7 @@ async function postNewOrderToChannel(orderId, amount, qty, chatId) {
     const text =
         `🛎 <b>ORDER BARU MASUK</b>\n\n` +
         `🆔 Order: <code>${orderId}</code>\n` +
-        `🛍️ Produk: <b>Kode Promo (${qty} Pcs)</b>\n` +
+        `🛍️ Produk: <b>Kode Promo Google Drive (${qty} Pcs)</b>\n` +
         `💰 Total: <b>${formatRp(amount)}</b>\n` +
         `👤 Pembeli: <code>${masked}</code>\n` +
         `🕒 ${time}\n` +
@@ -453,7 +454,7 @@ async function postPaymentSuccessToChannel(orderId, amount, qty, chatId) {
     const text =
         `🎉 <b>TRANSAKSI BERHASIL / LUNAS!</b>\n\n` +
         `🆔 Order: <code>${orderId}</code>\n` +
-        `🛍️ Produk: <b>Kode Promo (${qty} Pcs)</b>\n` +
+        `🛍️ Produk: <b>Kode Promo Google Drive (${qty} Pcs)</b>\n` +
         `💰 Total: <b>${formatRp(amount)}</b>\n` +
         `👤 Pembeli: <code>${masked}</code>\n` +
         `🕒 ${time}\n\n` +
@@ -521,9 +522,9 @@ async function handleTelegramUpdate(update) {
             case '/tambah': {
                 if (String(chatId) !== String(ADMIN_CHAT_ID)) return;
                 const codesInput = parts[1];
-                const price = parseInt(parts[2], 10) || 15000;
+                const price = parseInt(parts[2], 10) || 1000;
                 if (!codesInput) {
-                    await sendMessage(chatId, `Format: <code>/tambah KODE1,KODE2 15000</code>`);
+                    await sendMessage(chatId, `Format: <code>/tambah KODE1,KODE2 1000</code>`);
                     return;
                 }
                 const list = codesInput.split(',').map(s => s.trim()).filter(Boolean);
