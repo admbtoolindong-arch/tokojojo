@@ -599,6 +599,11 @@ async function startPolling() {
     pollingActive = true;
     console.log('[BotManager] Telegram Long Polling dimulai...');
 
+    // Pastikan webhook dihapus agar Telegram mengizinkan getUpdates (polling)
+    try {
+        await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/deleteWebhook`, { drop_pending_updates: false });
+    } catch (e) {}
+
     while (pollingActive) {
         try {
             const res = await axios.get(`https://api.telegram.org/bot${BOT_TOKEN}/getUpdates`, {
