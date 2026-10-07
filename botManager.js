@@ -8,10 +8,12 @@ const ORDER_EXPIRE_MINUTES = parseInt(process.env.ORDER_EXPIRE_MINUTES, 10) || 3
 
 let qrisStoreRef = null;
 let generateDynamicQRISRef = null;
+let verifyPaymentRef = null;
 
-function setServerReferences(qrisStore, generateDynamicQRIS) {
+function setServerReferences(qrisStore, generateDynamicQRIS, verifyPayment = null) {
     qrisStoreRef = qrisStore;
     generateDynamicQRISRef = generateDynamicQRIS;
+    verifyPaymentRef = verifyPayment;
 }
 
 function formatRp(number) {
@@ -67,9 +69,12 @@ async function sendPhoto(chatId, photoUrl, caption, replyMarkup = null) {
     return callTelegram('sendPhoto', payload);
 }
 
-async function answerCallbackQuery(callbackQueryId, text = null) {
+async function answerCallbackQuery(callbackQueryId, text = null, showAlert = false) {
     const payload = { callback_query_id: callbackQueryId };
-    if (text) payload.text = text;
+    if (text) {
+        payload.text = text;
+        if (showAlert) payload.show_alert = true;
+    }
     return callTelegram('answerCallbackQuery', payload);
 }
 
@@ -372,12 +377,34 @@ async function checkOrder(chatId, orderId) {
         return sendMessage(chatId, `⚠️ Pesanan <code>${orderId}</code> telah berstatus <b>${order.status}</b>.`);
     }
 
+    // Pengecekan aktif ke API GoPay secara langsung
+    if (verifyPaymentRef) {
+        try {
+            const matched = await verifyPaymentRef(order.amount, order.createdAt, null, 'Bot-CheckOrder', orderId);
+            if (matched) {
+                await confirmPayment(orderId);
+                return;
+            }
+        } catch (e) {
+            console.error('[BotManager] checkOrder verifyPayment error:', e.message);
+        }
+    }
+
+    const checkTime = new Intl.DateTimeFormat('id-ID', {
+        timeZone: 'Asia/Jakarta',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    }).format(new Date()) + ' WIB';
+
     return sendMessage(chatId,
-        `⏳ <b>Menunggu Pembayaran!</b>\n\n` +
-        `Pesanan <code>${orderId}</code> belum terdeteksi dibayar.\n` +
-        `Silakan transfer persis <b>${formatRp(order.amount)}</b> sesuai QRIS yang tertera. Sistem akan mendeteksinya secara otomatis dalam beberapa detik setelah Anda bayar.`, {
+        `⏳ <b>STATUS: MENUNGGU PEMBAYARAN</b>\n\n` +
+        `🆔 Order ID: <code>${orderId}</code>\n` +
+        `💰 Nominal Persis: <b>${formatRp(order.amount)}</b>\n` +
+        `🕒 Terakhir Dicek: <code>${checkTime}</code>\n\n` +
+        `Mutasi pembayaran belum terdeteksi di GoPay. Jika baru saja transfer, mohon tunggu 5-10 detik lalu klik tombol di bawah untuk mengecek kembali.`, {
             inline_keyboard: [
-                [{ text: "🔄 Cek Lagi", callback_data: `check_order:${orderId}` }],
+                [{ text: "🔄 Cek Status Bayar Lagi", callback_data: `check_order:${orderId}` }],
                 [{ text: "❌ Batalkan Pesanan", callback_data: `cancel_order:${orderId}` }]
             ]
         });
@@ -580,6 +607,7 @@ async function handleTelegramUpdate(update) {
             await cancelOrder(chatId, orderId);
         } else if (data.startsWith('check_order:')) {
             const orderId = data.replace('check_order:', '');
+            await answerCallbackQuery(cqId, '🔍 Memeriksa mutasi GoPay...');
             await checkOrder(chatId, orderId);
         } else if (data === 'menu_my_order') {
             const pending = storeManager.findPendingOrderByChat(chatId);

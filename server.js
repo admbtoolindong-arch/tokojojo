@@ -21,6 +21,27 @@ const claimedTransactions = new Map();
 const activityLogs = [];
 const qrisStore = new Map();
 
+// Auto-restore sesi GoPay dari Environment Variable jika file belum ada
+const SESSION_FILE = path.join(__dirname, '.GOPAY_SESI_JANGAN_DIHAPUS.json');
+if (!fs.existsSync(SESSION_FILE)) {
+    if (process.env.GOPAY_SESSION_BASE64) {
+        try {
+            const decoded = Buffer.from(process.env.GOPAY_SESSION_BASE64, 'base64').toString('utf-8');
+            fs.writeFileSync(SESSION_FILE, decoded, 'utf-8');
+            console.log('[Server] Sesi GoPay berhasil di-restore dari GOPAY_SESSION_BASE64');
+        } catch (e) {
+            console.error('[Server] Gagal decode GOPAY_SESSION_BASE64:', e.message);
+        }
+    } else if (process.env.GOPAY_SESSION_DATA) {
+        try {
+            fs.writeFileSync(SESSION_FILE, process.env.GOPAY_SESSION_DATA, 'utf-8');
+            console.log('[Server] Sesi GoPay berhasil di-restore dari GOPAY_SESSION_DATA');
+        } catch (e) {
+            console.error('[Server] Gagal tulis GOPAY_SESSION_DATA:', e.message);
+        }
+    }
+}
+
 const CACHE_FILE = path.join(__dirname, '.gopay_cache.json');
 
 function saveCookieToFile(cookie) {
@@ -259,7 +280,7 @@ function generateDynamicQRIS(staticTemplate, amount) {
 
 // Inisialisasi Toko Jojo & Bot Manager
 storeManager.initStore();
-botManager.setServerReferences(qrisStore, generateDynamicQRIS);
+botManager.setServerReferences(qrisStore, generateDynamicQRIS, verifyPayment);
 
 // Middleware Proteksi API Key
 const apiKeyAuth = (req, res, next) => {
@@ -757,7 +778,7 @@ async function verifyPayment(amount, startTime, merchantIdOverride = null, userA
     const fetchCheckPayment = async (activeHeaders) => {
         const merchantId = merchantIdOverride || process.env.GOPAY_MERCHANT_ID || '';
         const now = new Date();
-        const startTimeISO = startTime ? new Date(startTime).toISOString() : new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+        const startTimeISO = startTime ? new Date(new Date(startTime).getTime() - 2 * 60 * 1000).toISOString() : new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
         const endTimeISO = now.toISOString();
 
         return await axios.get(GOJEK_TRANSACTIONS_URL, {
