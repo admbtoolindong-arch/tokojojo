@@ -1,7 +1,7 @@
 [
   {
     "id": 1,
-    "code": "GDRIVE-PROMO-5TB-01",
+    "code": "DSS-PROMO-01",
     "price": 1000,
     "status": "AVAILABLE",
     "buyer": null,
@@ -9,7 +9,7 @@
   },
   {
     "id": 2,
-    "code": "GDRIVE-PROMO-5TB-02",
+    "code": "DSS-PROMO-02",
     "price": 1000,
     "status": "AVAILABLE",
     "buyer": null,
@@ -17,7 +17,7 @@
   },
   {
     "id": 3,
-    "code": "GDRIVE-PROMO-5TB-03",
+    "code": "DSS-PROMO-03",
     "price": 1000,
     "status": "AVAILABLE",
     "buyer": null,
@@ -25,7 +25,7 @@
   },
   {
     "id": 4,
-    "code": "GDRIVE-PROMO-5TB-04",
+    "code": "DSS-PROMO-04",
     "price": 1000,
     "status": "AVAILABLE",
     "buyer": null,
@@ -33,7 +33,7 @@
   },
   {
     "id": 5,
-    "code": "GDRIVE-PROMO-5TB-05",
+    "code": "DSS-PROMO-05",
     "price": 1000,
     "status": "AVAILABLE",
     "buyer": null,
@@ -41,7 +41,7 @@
   },
   {
     "id": 6,
-    "code": "GDRIVE-PROMO-5TB-06",
+    "code": "DSS-PROMO-06",
     "price": 1000,
     "status": "AVAILABLE",
     "buyer": null,
@@ -49,7 +49,7 @@
   },
   {
     "id": 7,
-    "code": "GDRIVE-PROMO-5TB-07",
+    "code": "DSS-PROMO-07",
     "price": 1000,
     "status": "AVAILABLE",
     "buyer": null,
@@ -57,7 +57,7 @@
   },
   {
     "id": 8,
-    "code": "GDRIVE-PROMO-5TB-08",
+    "code": "DSS-PROMO-08",
     "price": 1000,
     "status": "AVAILABLE",
     "buyer": null,
@@ -65,7 +65,7 @@
   },
   {
     "id": 9,
-    "code": "GDRIVE-PROMO-5TB-09",
+    "code": "DSS-PROMO-09",
     "price": 1000,
     "status": "AVAILABLE",
     "buyer": null,
@@ -73,7 +73,7 @@
   },
   {
     "id": 10,
-    "code": "GDRIVE-PROMO-5TB-10",
+    "code": "DSS-PROMO-10",
     "price": 1000,
     "status": "AVAILABLE",
     "buyer": null,

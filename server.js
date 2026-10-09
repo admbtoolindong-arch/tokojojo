@@ -514,10 +514,10 @@ app.get('/qr/:id', (req, res) => {
     <div class="card">
         <div class="badge-qris">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-            GoPay / QRIS Dinamis
+            Detail Sablon Studio • QRIS Dinamis
         </div>
 
-        <div class="amount-title">Total Pembayaran</div>
+        <div class="amount-title">Total Tagihan Pembayaran</div>
         <div class="amount-value">${formattedAmount}</div>
 
         <div class="qr-wrapper" id="qr-container">
