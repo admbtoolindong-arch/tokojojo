@@ -623,13 +623,15 @@ async function confirmPayment(orderId) {
         `📲 Chat CS WhatsApp: <a href="${STUDIO.waUrl}">${STUDIO.whatsapp}</a>\n` +
         `🌐 Website: <a href="${STUDIO.website}">${STUDIO.website}</a>`;
 
-    await sendMessage(updated.chatId, messageText, {
-        inline_keyboard: [
-            [{ text: "🛍️ Beli Voucher Lagi", callback_data: "menu_buy" }],
-            [{ text: "📦 Katalog Layanan", callback_data: "menu_catalog" }],
-            [{ text: "🏠 Menu Utama", callback_data: "menu_main" }]
-        ]
-    });
+    if (updated.chatId && /^-?\d+$/.test(String(updated.chatId))) {
+        await sendMessage(updated.chatId, messageText, {
+            inline_keyboard: [
+                [{ text: "🛍️ Beli Voucher Lagi", callback_data: "menu_buy" }],
+                [{ text: "📦 Katalog Layanan", callback_data: "menu_catalog" }],
+                [{ text: "🏠 Menu Utama", callback_data: "menu_main" }]
+            ]
+        });
+    }
 
     if (CHANNEL_ID) {
         postPaymentSuccessToChannel(orderId, updated.amount, qty, updated.chatId).catch(() => {});

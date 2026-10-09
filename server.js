@@ -294,16 +294,187 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Serve Static Web Assets untuk Detail Sablon Studio (PT DETAIL AKSARA INDONESIA)
+app.use(express.static(path.join(__dirname, 'public')));
+
 app.get('/', (req, res) => {
-    res.send('GoPay Partner API Gateway Berjalan');
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Endpoint Info Stok & Harga Web Detail Sablon Studio
+app.get('/api/store-info', (req, res) => {
+    try {
+        storeManager.releaseExpiredOrders();
+        const stock = storeManager.countAvailable();
+        const price = storeManager.getCurrentPrice();
+        res.json({
+            success: true,
+            stock,
+            price,
+            product_name: "Voucher Promo Detail Sablon Studio"
+        });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
+// Endpoint Buat Pesanan Web QRIS Dinamis
+app.post('/api/create-web-order', async (req, res) => {
+    try {
+        const qty = parseInt(req.body?.qty, 10) || 1;
+        if (qty < 1 || qty > 10) {
+            return res.status(400).json({ success: false, message: 'Jumlah voucher harus antara 1 sampai 10.' });
+        }
+
+        storeManager.releaseExpiredOrders();
+        const availableCount = storeManager.countAvailable();
+        if (availableCount < qty) {
+            return res.status(400).json({
+                success: false,
+                message: `Stok voucher promo tidak mencukupi. Tersisa ${availableCount} voucher.`
+            });
+        }
+
+        const staticTemplate = process.env.QRIS_STATIC;
+        if (!staticTemplate) {
+            return res.status(500).json({ success: false, message: 'QRIS_STATIC belum dikonfigurasi di server.' });
+        }
+
+        const unitPrice = storeManager.getCurrentPrice();
+        const subtotal = unitPrice * qty;
+        const uniqueCode = Math.floor(Math.random() * 90) + 10;
+        const totalPayment = subtotal + uniqueCode;
+
+        const orderId = `DSS-WEB-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 900 + 100)}`;
+        const reserved = storeManager.reserveVouchers('WEB', qty);
+        if (!reserved) {
+            return res.status(400).json({ success: false, message: 'Gagal mengunci voucher. Coba lagi beberapa saat.' });
+        }
+
+        const order = storeManager.createOrder('WEB', orderId, reserved, totalPayment);
+        const dynamicQR = generateDynamicQRIS(staticTemplate, totalPayment);
+        const qrisId = Math.random().toString(36).substring(2, 10);
+        const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 menit
+
+        qrisStore.set(qrisId, {
+            data: dynamicQR,
+            amount: totalPayment,
+            trxId: orderId,
+            orderId: orderId,
+            webhookUrl: process.env.GAS_WEBHOOK_URL,
+            webhookNotified: false,
+            expiresAt: expiresAt,
+            createdAt: new Date(),
+            status: 'PENDING',
+            source: 'WEB'
+        });
+
+        const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(dynamicQR)}`;
+
+        logActivity('INFO', `[Web] Order dibuat | Order ID: ${orderId} | Nominal: Rp ${totalPayment} (${qty} Pcs)`);
+
+        return res.json({
+            success: true,
+            data: {
+                order_id: orderId,
+                amount: totalPayment,
+                qty: qty,
+                qr_image_url: qrImageUrl,
+                qris_code: dynamicQR,
+                expires_at: expiresAt.toISOString(),
+                expires_in_minutes: 30
+            }
+        });
+    } catch (err) {
+        logActivity('ERROR', `Gagal membuat order web: ${err.message}`);
+        return res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// Endpoint Cek Status Pembayaran Pesanan Web
+app.get('/api/check-web-order/:orderId', async (req, res) => {
+    try {
+        const orderId = req.params.orderId;
+        storeManager.releaseExpiredOrders();
+
+        const txs = storeManager.getTransactions();
+        const order = txs.find(t => t.orderId === orderId);
+
+        if (!order) {
+            return res.status(404).json({ success: false, message: 'Order tidak ditemukan.' });
+        }
+
+        if (order.status === 'SUCCESS') {
+            return res.json({
+                success: true,
+                status: 'PAID',
+                order_id: order.orderId,
+                amount: order.amount,
+                codes: order.codes,
+                paid_at: order.paidAt
+            });
+        }
+
+        if (order.status === 'CANCELLED' || order.status === 'EXPIRED') {
+            return res.json({
+                success: true,
+                status: order.status,
+                order_id: order.orderId,
+                amount: order.amount
+            });
+        }
+
+        // Pengecekan aktif ke API GoPay secara langsung
+        try {
+            const matched = await verifyPayment(
+                order.amount,
+                new Date(order.createdAt),
+                null,
+                'Web-CheckOrder',
+                orderId
+            );
+
+            if (matched) {
+                const updated = storeManager.confirmOrderPayment(orderId);
+                for (const [k, v] of qrisStore.entries()) {
+                    if (v.orderId === orderId) {
+                        v.status = 'PAID';
+                        v.transaction = matched;
+                        break;
+                    }
+                }
+                logActivity('SUCCESS', `[Web] Pembayaran order ${orderId} berhasil diverifikasi!`);
+
+                return res.json({
+                    success: true,
+                    status: 'PAID',
+                    order_id: order.orderId,
+                    amount: order.amount,
+                    codes: updated ? updated.codes : order.codes,
+                    paid_at: updated ? updated.paidAt : new Date().toISOString()
+                });
+            }
+        } catch (vErr) {
+            // Silently pass
+        }
+
+        return res.json({
+            success: true,
+            status: 'PENDING',
+            order_id: order.orderId,
+            amount: order.amount
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: err.message });
+    }
 });
 
 app.get('/health', (req, res) => {
-    res.json({ status: 'OK', service: 'GoPay Partner API Gateway', timestamp: new Date() });
+    res.json({ status: 'OK', service: 'Detail Sablon Studio Gateway', timestamp: new Date() });
 });
 
 app.get('/api/health', (req, res) => {
-    res.json({ success: true, message: 'Layanan API GoPay Berfungsi Normal', timestamp: new Date() });
+    res.json({ success: true, message: 'Layanan API GoPay & Detail Sablon Studio Berfungsi Normal', timestamp: new Date() });
 });
 
 
